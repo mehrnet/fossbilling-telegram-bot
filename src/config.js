@@ -66,15 +66,6 @@ function normalizeBaseUrl(url) {
   return parsed.toString().replace(/\/+$/, "");
 }
 
-function resolveWebhookPath(webhookUrl) {
-  if (!webhookUrl) {
-    return "/telegram/webhook";
-  }
-
-  const parsed = new URL(webhookUrl);
-  return parsed.pathname || "/telegram/webhook";
-}
-
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value || ""), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -90,22 +81,13 @@ const billingApiKey = requireEnv("BILLING_API_KEY");
 const billingBaseUrl = normalizeBaseUrl(
   process.env.BILLING_BASE_URL || "https://dash.mehrnet.com",
 );
-const webhookUrl = (process.env.WEBHOOK_URL || "").trim();
-const webhookPath = resolveWebhookPath(webhookUrl);
-const usePolling = webhookUrl === "";
+const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING";
 
 const config = Object.freeze({
   botToken,
   billingApiKey,
   billingBaseUrl,
-  webhookUrl,
-  webhookPath,
   usePolling,
-  webhookSecret: (process.env.WEBHOOK_SECRET || "").trim(),
-  webhookLockFile: path.resolve(
-    process.cwd(),
-    process.env.WEBHOOK_LOCK_FILE || "./webhook.lock",
-  ),
   databaseFile: path.resolve(
     process.cwd(),
     process.env.DATABASE_FILE || "./database.json",

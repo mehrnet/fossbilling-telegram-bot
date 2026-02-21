@@ -71,15 +71,6 @@ function normalizeBaseUrl(url) {
   return parsed.toString().replace(/\/+$/, "");
 }
 
-function resolveWebhookPath(webhookUrl) {
-  if (!webhookUrl) {
-    return "/telegram/webhook";
-  }
-
-  const parsed = new URL(webhookUrl);
-  return parsed.pathname || "/telegram/webhook";
-}
-
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value || ""), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -95,22 +86,13 @@ const billingApiKey = requireEnv("BILLING_API_KEY");
 const billingBaseUrl = normalizeBaseUrl(
   process.env.BILLING_BASE_URL || "https://dash.mehrnet.com",
 );
-const webhookUrl = (process.env.WEBHOOK_URL || "").trim();
-const webhookPath = resolveWebhookPath(webhookUrl);
-const usePolling = webhookUrl === "";
+const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING";
 
 const config = Object.freeze({
   botToken,
   billingApiKey,
   billingBaseUrl,
-  webhookUrl,
-  webhookPath,
   usePolling,
-  webhookSecret: (process.env.WEBHOOK_SECRET || "").trim(),
-  webhookLockFile: path.resolve(
-    process.cwd(),
-    process.env.WEBHOOK_LOCK_FILE || "./webhook.lock",
-  ),
   databaseFile: path.resolve(
     process.cwd(),
     process.env.DATABASE_FILE || "./database.json",
@@ -5415,8 +5397,6 @@ module.exports = {
 
 },
 "src/index.js": function(module, exports, __require, __filename, __dirname, require) {
-const fs = require("node:fs");
-const fsp = require("node:fs/promises");
 const http = require("node:http");
 
 const { config } = __require("src/config.js");
@@ -5454,56 +5434,9 @@ function sendJson(res, statusCode, payload) {
   res.end(body);
 }
 
-function readRequestBody(req, maxBytes = 2 * 1024 * 1024) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
 
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > maxBytes) {
-        reject(new Error("Payload too large"));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
 
-    req.on("end", () => {
-      resolve(Buffer.concat(chunks).toString("utf8"));
-    });
 
-    req.on("error", reject);
-  });
-}
-
-async function ensureWebhookOnStartup(telegram) {
-  if (fs.existsSync(config.webhookLockFile)) {
-    console.log(`[webhook] Lock file exists (${config.webhookLockFile}); skipping setup.`);
-    return;
-  }
-
-  await telegram.setWebhook(config.webhookUrl, config.webhookSecret);
-  await fsp.writeFile(
-    config.webhookLockFile,
-    [
-      `created_at=${new Date().toISOString()}`,
-      `webhook_url=${config.webhookUrl}`,
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  console.log(`[webhook] Webhook set and lock file written: ${config.webhookLockFile}`);
-}
-
-async function ensurePollingOnStartup(telegram) {
-  try {
-    await telegram.deleteWebhook(false);
-    console.log("[polling] Existing webhook removed (if present).");
-  } catch (error) {
-    console.warn(`[polling] Could not remove webhook: ${formatError(error)}`);
-  }
-}
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -5589,26 +5522,15 @@ async function startServer() {
   const telegram = new TelegramClient(config.botToken);
   const billing = new FossBillingClient(config.billingBaseUrl, config.billingApiKey);
 
-  if (config.usePolling) {
-    await ensurePollingOnStartup(telegram);
-  } else {
-    try {
-      await ensureWebhookOnStartup(telegram);
-    } catch (error) {
-      console.error("[webhook] Setup failed:", error.message);
-    }
-  }
-
   const server = http.createServer(async (req, res) => {
     const method = req.method || "GET";
-    const reqUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
-    const pathname = reqUrl.pathname;
+    const pathname = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`).pathname;
 
     if (method === "GET" && pathname === "/health") {
       sendJson(res, 200, {
         ok: true,
         service: "mehrnet-hosting-bot",
-        webhookPath: config.webhookPath,
+        mode: config.usePolling ? "polling" : "webhook",
         timestamp: new Date().toISOString(),
       });
       return;
@@ -5618,38 +5540,8 @@ async function startServer() {
       sendJson(res, 200, {
         ok: true,
         message: "MehrNet Hosting Telegram Bot",
-        webhookPath: config.webhookPath,
+        mode: config.usePolling ? "polling" : "webhook",
       });
-      return;
-    }
-
-    if (method === "POST" && pathname === config.webhookPath) {
-      if (config.webhookSecret) {
-        const incomingSecret = String(
-          req.headers["x-telegram-bot-api-secret-token"] || "",
-        );
-        if (incomingSecret !== config.webhookSecret) {
-          sendJson(res, 403, { ok: false, error: "Invalid webhook secret token." });
-          return;
-        }
-      }
-
-      try {
-        const rawBody = await readRequestBody(req);
-        const update = rawBody ? JSON.parse(rawBody) : {};
-
-        await handleTelegramUpdate(update, {
-          db,
-          telegram,
-          billing,
-          config,
-        });
-
-        sendJson(res, 200, { ok: true });
-      } catch (error) {
-        console.error("[webhook] Failed to handle update:", error);
-        sendJson(res, 500, { ok: false, error: "Webhook processing failed." });
-      }
       return;
     }
 
