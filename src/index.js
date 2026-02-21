@@ -146,6 +146,12 @@ async function startServer() {
       return;
     }
 
+    // Accept any POST (old webhooks) to prevent Telegram errors
+    if (method === "POST") {
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
     sendJson(res, 404, { ok: false, error: "Not found" });
   });
 
@@ -154,7 +160,7 @@ async function startServer() {
       console.log(
         `[startup] Bot server listening on port ${config.port}, mode=${
           config.usePolling ? "polling" : "webhook"
-        }, webhook path ${config.webhookPath}`,
+        }`,
       );
       resolve();
     });
