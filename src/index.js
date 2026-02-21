@@ -160,7 +160,8 @@ async function startServer() {
       return;
     }
 
-    if (method === "GET" && pathname === "/") {
+    // Handle any GET (with or without trailing slash)
+    if (method === "GET") {
       sendJson(res, 200, {
         ok: true,
         message: "MehrNet Hosting Telegram Bot",

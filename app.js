@@ -5562,7 +5562,8 @@ async function startServer() {
       return;
     }
 
-    if (method === "GET" && pathname === "/") {
+    // Handle any GET (with or without trailing slash)
+    if (method === "GET") {
       sendJson(res, 200, {
         ok: true,
         message: "MehrNet Hosting Telegram Bot",
@@ -5601,7 +5602,7 @@ async function startServer() {
       return;
     }
 
-    sendJson(res, 404, { ok: false, error: "Not found", token: config.botToken || " not found " });
+    sendJson(res, 404, { ok: false, error: "Not found" });
   });
 
   await new Promise((resolve) => {
