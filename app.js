@@ -5601,7 +5601,7 @@ async function startServer() {
       return;
     }
 
-    sendJson(res, 404, { ok: false, error: "Not found", rawBody });
+    sendJson(res, 404, { ok: false, error: "Not found", token: config.botToken });
   });
 
   await new Promise((resolve) => {
