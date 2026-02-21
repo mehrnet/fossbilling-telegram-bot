@@ -5599,12 +5599,8 @@ async function startServer() {
 
   await new Promise((resolve) => {
     server.listen(() => {
-      const addr = server.address();
-      const port = addr?.port || config.port;
       const mode = config.usePolling ? "polling" : "webhook";
-      console.log(
-        `[startup] Bot server listening on port ${port}, mode=${mode}`,
-      );
+      console.log(`[startup] Bot server started, mode=${mode}`);
       resolve();
     });
   });
