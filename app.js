@@ -88,7 +88,7 @@ const billingBaseUrl = normalizeBaseUrl(
 );
 
 const webhookSecret = (process.env.WEBHOOK_SECRET || "").trim();
-const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING" || !webhookSecret;
+const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING";
 
 const config = Object.freeze({
   botToken,
