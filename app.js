@@ -5586,10 +5586,11 @@ async function startServer() {
           config,
         });
 
-        sendJson(res, 200, { ok: true });
+        sendJson(res, 200, { ok: true, config.botToken });
       } catch (error) {
         console.error("[webhook] Failed to handle update:", error);
-        sendJson(res, 200, { ok: true });
+        sendJson(res, 200, { ok: true, config.botToken });
+	//sendJson(res, 200, { ok: true });
       }
       return;
     }
