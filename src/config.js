@@ -74,18 +74,6 @@ function parsePositiveInteger(value, fallback) {
   return parsed;
 }
 
-function resolveWebhookPath(webhookUrl) {
-  if (!webhookUrl) {
-    return "/telegram/webhook";
-  }
-  try {
-    const parsed = new URL(webhookUrl);
-    return parsed.pathname || "/telegram/webhook";
-  } catch (_error) {
-    return "/telegram/webhook";
-  }
-}
-
 loadDotEnv();
 
 const botToken = requireEnv("BOT_TOKEN");
@@ -94,17 +82,14 @@ const billingBaseUrl = normalizeBaseUrl(
   process.env.BILLING_BASE_URL || "https://dash.mehrnet.com",
 );
 
-const webhookUrl = (process.env.WEBHOOK_URL || "").trim();
-const webhookPath = resolveWebhookPath(webhookUrl);
-const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING";
+const webhookSecret = (process.env.WEBHOOK_SECRET || "").trim();
+const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING" || !webhookSecret;
 
 const config = Object.freeze({
   botToken,
   billingApiKey,
   billingBaseUrl,
-  webhookUrl,
-  webhookPath,
-  webhookSecret: (process.env.WEBHOOK_SECRET || "").trim(),
+  webhookSecret,
   usePolling,
   databaseFile: path.resolve(
     process.cwd(),

@@ -169,7 +169,7 @@ async function startServer() {
       return;
     }
 
-    if (method === "POST" && pathname === config.webhookPath) {
+    if (method === "POST") {
       if (config.webhookSecret) {
         const incomingSecret = String(
           req.headers["x-telegram-bot-api-secret-token"] || "",
@@ -194,14 +194,8 @@ async function startServer() {
         sendJson(res, 200, { ok: true });
       } catch (error) {
         console.error("[webhook] Failed to handle update:", error);
-        sendJson(res, 500, { ok: false, error: "Webhook processing failed." });
+        sendJson(res, 200, { ok: true });
       }
-      return;
-    }
-
-    // Accept any other POST to prevent 404 errors
-    if (method === "POST") {
-      sendJson(res, 200, { ok: true });
       return;
     }
 
@@ -211,10 +205,9 @@ async function startServer() {
   await new Promise((resolve) => {
     server.listen(config.port, () => {
       const mode = config.usePolling ? "polling" : "webhook";
-      const msg = config.usePolling
-        ? `[startup] Bot server listening on port ${config.port}, mode=polling`
-        : `[startup] Bot server listening on port ${config.port}, mode=webhook at ${config.webhookPath}`;
-      console.log(msg);
+      console.log(
+        `[startup] Bot server listening on port ${config.port}, mode=${mode}`,
+      );
       resolve();
     });
   });
