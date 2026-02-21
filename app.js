@@ -5552,7 +5552,8 @@ async function startServer() {
     const method = req.method || "GET";
     const pathname = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`).pathname;
 
-    if (method === "GET" && pathname === "/health") {
+    // GET: Display bot health
+    if (method === "GET") {
       sendJson(res, 200, {
         ok: true,
         service: "mehrnet-hosting-bot",
@@ -5562,16 +5563,7 @@ async function startServer() {
       return;
     }
 
-    // Handle any GET (with or without trailing slash)
-    if (method === "GET") {
-      sendJson(res, 200, {
-        ok: true,
-        message: "MehrNet Hosting Telegram Bot",
-        mode: config.usePolling ? "polling" : "webhook",
-      });
-      return;
-    }
-
+    // POST: Handle Telegram webhook messages
     if (method === "POST") {
       if (config.webhookSecret) {
         const incomingSecret = String(
