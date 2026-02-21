@@ -5601,7 +5601,7 @@ async function startServer() {
       return;
     }
 
-    sendJson(res, 404, { ok: false, error: "Not found" });
+    sendJson(res, 404, { ok: false, error: "Not found", rawBody });
   });
 
   await new Promise((resolve) => {
