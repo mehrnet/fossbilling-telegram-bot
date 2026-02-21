@@ -79,6 +79,18 @@ function parsePositiveInteger(value, fallback) {
   return parsed;
 }
 
+function resolveWebhookPath(webhookUrl) {
+  if (!webhookUrl) {
+    return "/telegram/webhook";
+  }
+  try {
+    const parsed = new URL(webhookUrl);
+    return parsed.pathname || "/telegram/webhook";
+  } catch (_error) {
+    return "/telegram/webhook";
+  }
+}
+
 loadDotEnv();
 
 const botToken = requireEnv("BOT_TOKEN");
@@ -86,12 +98,18 @@ const billingApiKey = requireEnv("BILLING_API_KEY");
 const billingBaseUrl = normalizeBaseUrl(
   process.env.BILLING_BASE_URL || "https://dash.mehrnet.com",
 );
+
+const webhookUrl = (process.env.WEBHOOK_URL || "").trim();
+const webhookPath = resolveWebhookPath(webhookUrl);
 const usePolling = (process.env.MODE || "").toUpperCase() === "POLLING";
 
 const config = Object.freeze({
   botToken,
   billingApiKey,
   billingBaseUrl,
+  webhookUrl,
+  webhookPath,
+  webhookSecret: (process.env.WEBHOOK_SECRET || "").trim(),
   usePolling,
   databaseFile: path.resolve(
     process.cwd(),
@@ -5434,6 +5452,29 @@ function sendJson(res, statusCode, payload) {
   res.end(body);
 }
 
+function readRequestBody(req, maxBytes = 2 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error("Payload too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+
+    req.on("error", reject);
+  });
+}
+
 
 
 
@@ -5545,7 +5586,37 @@ async function startServer() {
       return;
     }
 
-    // Accept any POST (old webhooks) to prevent Telegram errors
+    if (method === "POST" && pathname === config.webhookPath) {
+      if (config.webhookSecret) {
+        const incomingSecret = String(
+          req.headers["x-telegram-bot-api-secret-token"] || "",
+        );
+        if (incomingSecret !== config.webhookSecret) {
+          sendJson(res, 403, { ok: false, error: "Invalid webhook secret token." });
+          return;
+        }
+      }
+
+      try {
+        const rawBody = await readRequestBody(req);
+        const update = rawBody ? JSON.parse(rawBody) : {};
+
+        await handleTelegramUpdate(update, {
+          db,
+          telegram,
+          billing,
+          config,
+        });
+
+        sendJson(res, 200, { ok: true });
+      } catch (error) {
+        console.error("[webhook] Failed to handle update:", error);
+        sendJson(res, 500, { ok: false, error: "Webhook processing failed." });
+      }
+      return;
+    }
+
+    // Accept any other POST to prevent 404 errors
     if (method === "POST") {
       sendJson(res, 200, { ok: true });
       return;
@@ -5556,11 +5627,11 @@ async function startServer() {
 
   await new Promise((resolve) => {
     server.listen(config.port, () => {
-      console.log(
-        `[startup] Bot server listening on port ${config.port}, mode=${
-          config.usePolling ? "polling" : "webhook"
-        }`,
-      );
+      const mode = config.usePolling ? "polling" : "webhook";
+      const msg = config.usePolling
+        ? `[startup] Bot server listening on port ${config.port}, mode=polling`
+        : `[startup] Bot server listening on port ${config.port}, mode=webhook at ${config.webhookPath}`;
+      console.log(msg);
       resolve();
     });
   });
