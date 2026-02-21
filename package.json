@@ -1,0 +1,18 @@
+{
+  "name": "mehrnet-hosting-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lean Telegram bot for FOSSBilling hosting with zero external runtime dependencies.",
+  "main": "app.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node src/main.js",
+    "build": "node scripts/bundle.js",
+    "bundle": "node scripts/bundle.js",
+    "check": "node --check src/main.js && node --check src/index.js && node --check src/bot.js && node --check src/fossbilling.js && node --check src/telegram.js && node --check scripts/bundle.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
