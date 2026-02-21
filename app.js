@@ -5400,6 +5400,8 @@ module.exports = {
 
 },
 "src/index.js": function(module, exports, __require, __filename, __dirname, require) {
+const fs = require("node:fs");
+const path = require("node:path");
 const http = require("node:http");
 
 const { config } = __require("src/config.js");
@@ -5468,6 +5470,38 @@ function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+async function appendToLog(logFile, entry) {
+  try {
+    let logs = [];
+    if (fs.existsSync(logFile)) {
+      const content = fs.readFileSync(logFile, "utf8");
+      try {
+        logs = JSON.parse(content) || [];
+      } catch (_error) {
+        logs = [];
+      }
+    }
+
+    if (!Array.isArray(logs)) {
+      logs = [];
+    }
+
+    logs.unshift({
+      timestamp: new Date().toISOString(),
+      ...entry,
+    });
+
+    // Keep last 1000 entries
+    if (logs.length > 1000) {
+      logs = logs.slice(0, 1000);
+    }
+
+    fs.writeFileSync(logFile, JSON.stringify(logs, null, 2), "utf8");
+  } catch (error) {
+    console.error("[log] Failed to write log:", error);
+  }
 }
 
 function startPollingLoop({ telegram, db, billing }) {
@@ -5579,6 +5613,12 @@ async function startServer() {
         const rawBody = await readRequestBody(req);
         const update = rawBody ? JSON.parse(rawBody) : {};
 
+        // Log to file
+        await appendToLog(
+          path.resolve(process.cwd(), "./log.json"),
+          { body: update },
+        );
+
         await handleTelegramUpdate(update, {
           db,
           telegram,
@@ -5586,11 +5626,10 @@ async function startServer() {
           config,
         });
 
-        sendJson(res, 200, { ok: true, config.botToken });
+        sendJson(res, 200, { ok: true });
       } catch (error) {
         console.error("[webhook] Failed to handle update:", error);
-        sendJson(res, 200, { ok: true, config.botToken });
-	//sendJson(res, 200, { ok: true });
+        sendJson(res, 200, { ok: true });
       }
       return;
     }
