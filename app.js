@@ -5598,7 +5598,7 @@ async function startServer() {
   });
 
   await new Promise((resolve) => {
-    server.listen(config.port, () => {
+    server.listen(config.port, "0.0.0.0", () => {
       const mode = config.usePolling ? "polling" : "webhook";
       console.log(
         `[startup] Bot server listening on port ${config.port}, mode=${mode}`,
